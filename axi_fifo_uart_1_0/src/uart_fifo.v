@@ -90,6 +90,7 @@ rams_sp_nc#
    .DWIDTH(DATA_WIDTH),
    .ADDRWIDTH(RWIDTH)
 )
+ram_inst
 (
     .clk(aclk),
     .we(ram_we),
