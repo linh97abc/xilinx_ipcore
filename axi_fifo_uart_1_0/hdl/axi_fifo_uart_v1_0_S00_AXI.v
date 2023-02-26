@@ -99,34 +99,53 @@
         wire [15:0] s_axis_uart_tdata;
         wire s_axis_uart_tvalid;
         wire s_axis_uart_tready;
+		wire s_axis_uart_tuser;
         
        
 	
 		// axis_uart
-	reg [31:0]uart_cfg_reg;	/* bits: prescaler = [15:0], parity = [18:16], byte_size <= [22:19], stop_bits = [23] */
+
+
     wire uart_cfg_ready;
     wire uart_rx_valid;
+    wire uart_rx_user;
     wire uart_tx_ready;
-    
     reg [15:0]uart_tx_data;
     reg uart_tx_valid;
+
     
     wire  [15:0]uart_rx_data;
     reg uart_rx_ready;
     
         //
+	/* bits: prescaler = [15:0], parity = [18:16], byte_size <= [22:19], stop_bits = [23], rx_en = [24], tx_en = [25], reset = [26], en = [31] */
+	reg [31:0]uart_cfg_reg;
+	wire [31:0] uart_flag_reg;
     reg [31:0] uart_ie_reg;
+	reg [31:0] uart_tx_req_reg;
+	reg [31:0] uart_rx_req_reg;
     
     wire [31:0] uart_tx_data_count;
     wire [31:0] uart_rx_data_count;
+
+	//
+	wire uart_tx_meet_req_flag;
+	wire uart_rx_meet_req_flag;
+
+	assign uart_tx_meet_req_flag = ((FIFO_DEPTH - uart_tx_data_count) > uart_tx_req_reg)? 1'b1: 1'b0;
+	assign uart_rx_meet_req_flag = (uart_rx_data_count >= uart_rx_req_reg)? 1'b1: 1'b0;
     
     localparam REG_UART_CTRL = 0;
     localparam REG_UART_IE = 1;
-    localparam REG_UART_FLAG = 2;
-    localparam REG_UART_TX_DATA_CNT = 3;
-    localparam REG_UART_RX_DATA_CNT = 4;
-    localparam REG_UART_TX = 5;
-    localparam REG_UART_RX = 6;
+	localparam REG_UART_INT_E = 2;
+	localparam REG_UART_INT_D = 3;
+    localparam REG_UART_FLAG = 4;
+	localparam REG_UART_TX_REQ = 5;
+	localparam REG_UART_RX_REQ = 6;
+    localparam REG_UART_TX_DATA_CNT = 7;
+    localparam REG_UART_RX_DATA_CNT = 8;
+    localparam REG_UART_TX = 9;
+    localparam REG_UART_RX = 10;
 
 	// AXI4LITE signals
 	reg [C_S_AXI_ADDR_WIDTH-1 : 0] 	axi_awaddr;
@@ -266,6 +285,8 @@
 	    begin
 	      uart_cfg_reg <= 0;
 	      uart_ie_reg <= 0;
+		  uart_tx_req_reg <= 0;
+		  uart_rx_req_reg <= 0;
 	      uart_tx_valid <= 1'b0;
 	      uart_tx_data <= 0;
 	    end 
@@ -276,18 +297,40 @@
 	        
 	        case ( axi_awaddr[ADDR_LSB+OPT_MEM_ADDR_BITS:ADDR_LSB] )
 	          REG_UART_CTRL: begin
-                  if (~S_AXI_WDATA[31] | ~uart_cfg_reg[31]) uart_cfg_reg[23:0] <= S_AXI_WDATA[23:0];
-                  uart_cfg_reg[31:29] <= S_AXI_WDATA[31:29];
+                  if (~S_AXI_WDATA[31] | ~uart_cfg_reg[31]) begin
+					uart_cfg_reg[26:0] <= S_AXI_WDATA[26:0];
+				  end 
+                  uart_cfg_reg[31] <= S_AXI_WDATA[31];
 	          end
               REG_UART_IE:
 	            begin
-	              uart_ie_reg <= S_AXI_WDATA[1:0];
+	              uart_ie_reg <= S_AXI_WDATA[3:0];
+	            end 
+			  REG_UART_INT_E:
+	            begin
+	              uart_ie_reg <= uart_ie_reg | S_AXI_WDATA[3:0];
+	            end 
+			  REG_UART_INT_D:
+	            begin
+	              uart_ie_reg <= uart_ie_reg & {28'b1 ,~S_AXI_WDATA[3:0]};
+	            end 
+			  REG_UART_TX_REQ:
+	            begin
+	              uart_tx_req_reg <= S_AXI_WDATA;
+	            end 
+			  REG_UART_RX_REQ:
+	            begin
+	              uart_rx_req_reg <= S_AXI_WDATA;
 	            end 
 	          REG_UART_TX:
 	            begin
 	              uart_tx_data <= S_AXI_WDATA[15:0];
 	              uart_tx_valid <= 1'b1;
 	            end 
+			  default:
+			    begin
+				  uart_cfg_reg[26] <= 1'b0;
+				end
 	          
 	        endcase
 	      end
@@ -398,7 +441,9 @@
 	      case ( axi_araddr[ADDR_LSB+OPT_MEM_ADDR_BITS:ADDR_LSB] )
 	        REG_UART_CTRL   : reg_data_out <= uart_cfg_reg;
 	        REG_UART_IE   : reg_data_out <= uart_ie_reg;
-	        REG_UART_FLAG   : reg_data_out <= {30'b0, uart_tx_ready, uart_rx_valid};
+	        REG_UART_FLAG   : reg_data_out <= uart_flag_reg;
+			REG_UART_TX_REQ   : reg_data_out <= uart_tx_req_reg;
+			REG_UART_RX_REQ   : reg_data_out <= uart_rx_req_reg;
 	        REG_UART_TX_DATA_CNT: reg_data_out <= uart_tx_data_count;
 	        REG_UART_RX_DATA_CNT: reg_data_out <= uart_rx_data_count;
 	        REG_UART_TX   : reg_data_out <= uart_tx_data;
@@ -436,7 +481,10 @@
 	end   
 
 	// Add user logic here
-        assign irq = (uart_ie_reg[0] & uart_rx_valid) | (uart_ie_reg[1] & uart_tx_ready);
+        assign irq = (uart_ie_reg[0] & uart_rx_valid) |
+					 (uart_ie_reg[1] & uart_tx_ready) |
+					 (uart_ie_reg[2] & uart_rx_meet_req_flag) |
+					 (uart_ie_reg[3] & uart_tx_meet_req_flag);
         assign m_axis_uart_tdata = uart_tx_data;
         assign m_axis_uart_tvalid = uart_tx_valid;
         assign uart_tx_ready = m_axis_uart_tready;
@@ -447,8 +495,18 @@
         
         assign uart_rx_data = s_axis_uart_tdata;
         assign uart_rx_valid = s_axis_uart_tvalid;
+		assign uart_rx_user = s_axis_uart_tuser;
         assign s_axis_uart_tready = uart_rx_ready;
         
+		assign uart_flag_reg = {
+			22'b0,
+			uart_tx_meet_req_flag,
+			uart_tx_ready,
+			5'b0,
+			uart_rx_meet_req_flag,
+			uart_rx_user,
+			uart_rx_valid
+			};
         
     wire rts;
     
@@ -467,7 +525,7 @@
     axis_uart_inst
     (
         .aclk(S_AXI_ACLK),
-        .aresetn(S_AXI_ARESETN),
+        .aresetn(S_AXI_ARESETN & ~uart_cfg_reg[26]),
         /* Dynamic Configuration */				/* Active when DYNAMIC_CONFIG == 1 */
         /* bits: prescaler = [15:0], parity = [18:16], byte_size <= [22:19], stop_bits = [23], rx_en = [24], tx_en = [25], reset = [26] */
         .s_axis_config_tdata(m_axis_uart_cfg_tdata),	
@@ -479,7 +537,7 @@
         .s_axis_tready(m_axis_uart_tready),
         /* AXI-Stream Interface (Master) */
         .m_axis_tdata(s_axis_uart_tdata),
-        .m_axis_tuser(),				/* Parity Error */
+        .m_axis_tuser(s_axis_uart_tuser),				/* Parity Error */
         .m_axis_tvalid(s_axis_uart_tvalid),
         .m_axis_tready(s_axis_uart_tready),
         //
