@@ -108,7 +108,7 @@ end
 /* Out */
 always @(posedge aclk) begin
 	if (aresetn <= 1'b0) begin
-		txd_out <= 1'b0;
+		txd_out <= 1'b1;
 	end else begin
 		case (state)
 		STATE_IDLE: begin
@@ -143,15 +143,16 @@ always @(posedge aclk) begin
 		m_ready <= 1'b0;
 		tx_data <= 0;
 		counter <= 0;
+		state <= STATE_IDLE;
 	end else begin
 		case (state)
 		STATE_IDLE: begin
 			if (m_ready == 1'b0) begin
-				if (ctsn == 1'b0) begin
+				if (uart_tx_en && (ctsn == 1'b0)) begin
 					m_ready <= 1'b1;
 				end
 			end else begin
-				if (uart_tx_en && (m_valid == 1'b1)) begin
+				if (m_valid == 1'b1) begin
 					m_ready <= 1'b0;
 					tx_data <= m_data;
 					counter <= 0;
@@ -231,11 +232,13 @@ always @(posedge aclk) begin
 	end else begin
 		case (state)
 		STATE_BYTE: begin
-			case (parity)
-			PARITY_EVEN: tx_par <= tx_par + tx_data[0];
-			PARITY_ODD: tx_par <= tx_par + tx_data[0];
-			default: tx_par <= tx_par;
-			endcase
+			if (pre_stb == 1'b1) begin
+				case (parity)
+				PARITY_EVEN: tx_par <= tx_par + tx_data[0];
+				PARITY_ODD: tx_par <= tx_par + tx_data[0];
+				default: tx_par <= tx_par;
+				endcase
+			end
 		end
 		STATE_PAR: begin
 			tx_par <= tx_par;
