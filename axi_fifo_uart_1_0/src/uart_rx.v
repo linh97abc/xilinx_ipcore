@@ -87,7 +87,7 @@ reg rx_par_rcv;
 reg [3:0]byte_cnt;
 reg [15:0]bit_cnt;
 reg bit_rec;
-reg haftbit_rec;
+// reg haftbit_rec;
 
 reg parity_error;
 reg overrun_error;
@@ -160,7 +160,7 @@ always @(*) begin
 	end else begin
 		if (pre_stb == 1'b1) begin
 			bit_rec <= (bit_cnt >= {1'b0,prescaler[15:1]}) ? 1'b1 : 1'b0;
-			haftbit_rec <= (bit_cnt >= {2'b0,prescaler[15:2]})? 1'b1: 1'b0;
+			// haftbit_rec <= (bit_cnt >= {2'b0,prescaler[15:2]})? 1'b1: 1'b0;
 		end
 	end
 end
@@ -183,6 +183,7 @@ always @(posedge aclk) begin
 		STATE_IDLE: begin
 			parity_error <= 1'b0;
 			overrun_error <= 1'b0;
+			frame_error <= 1'b0;
 			s_valid <= 1'b0;
 
 			if ((rx_fall == 1'b1) && uart_rx_en) begin
@@ -226,7 +227,7 @@ always @(posedge aclk) begin
 		end
 		STATE_STOP: begin
 			if (pre_half == 1'b1) begin
-				frame_error <= haftbit_rec? 1'b0: 1'b1;
+				frame_error <= (bit_cnt >= {2'b0,prescaler[15:2]})? 1'b0: 1'b1;
 				state <= STATE_END;
 			end
 		end

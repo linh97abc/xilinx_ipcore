@@ -35,7 +35,7 @@ module uart_tx #(
 	input wire s_axis_config_tvalid,
 	output wire s_axis_config_tready,
 	/* Data */
-	input wire [15:0]s_axis_tdata,
+	input wire [8:0]s_axis_tdata,
 	input wire s_axis_tvalid,
 	output wire s_axis_tready,
 
@@ -70,7 +70,7 @@ reg [3:0]byte_size;
 reg [0:0]stop_bits;
 reg uart_tx_en;
 
-wire [15:0]m_data;
+wire [8:0]m_data;
 wire m_valid;
 reg m_ready;
 
@@ -79,7 +79,7 @@ reg [15:0]counter;
 reg pre_en;
 wire pre_stb;
 
-reg [15:0]tx_data;
+reg [8:0]tx_data;
 reg tx_par;
 (* IOB = "TRUE" *) reg txd_out;
 
@@ -168,7 +168,7 @@ always @(posedge aclk) begin
 		end
 		STATE_BYTE: begin
 			if (pre_stb == 1'b1) begin
-				tx_data[14:0] <= tx_data[15:1];
+				tx_data[7:0] <= tx_data[8:1];
 				if (counter == (byte_size - 1)) begin
 					counter <= 0;
 					if (parity == PARITY_NONE) begin
@@ -256,7 +256,7 @@ always @(posedge aclk) begin
 end
 
 uart_fifo #(
-	.DATA_WIDTH(16),
+	.DATA_WIDTH(9),
 	.DATA_DEPTH(FIFO_DEPTH)
 ) fifo_sync_inst (
 	.aclk(aclk),

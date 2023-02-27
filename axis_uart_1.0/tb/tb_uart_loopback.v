@@ -12,12 +12,12 @@ module tb_uart_loopback (
 	reg s_axis_config_tvalid = 0;
 	wire s_axis_config_tready;
 	/* AXI-Stream Interface (Slave) */
-	reg [15:0]s_axis_tdata = 0;
+	reg [8:0]s_axis_tdata = 0;
 	reg s_axis_tvalid = 0;
 	wire s_axis_tready;
 	/* AXI-Stream Interface (Master) */
-	wire [15:0]m_axis_tdata;
-	wire m_axis_tuser;				/* Parity Error */
+	wire [8:0]m_axis_tdata;
+	wire [4:0] uart1_error;				/* Parity Error */
 	wire m_axis_tvalid;
 	reg m_axis_tready = 0;
 	//
@@ -33,8 +33,8 @@ module tb_uart_loopback (
 
 axis_uart_v1_0 #(
 	72000000,
-	6000000,
-	2, 			/* 0(none), 1(even), 2(odd), 3(mark), 4(space) */
+	1800000,
+	1, 			/* 0(none), 1(even), 2(odd), 3(mark), 4(space) */
 	8, 		/* Byte Size (16 max) */
 	0, 		/* 0(one stop), 1(two stops) */
 	32,		/* FIFO Depth */
@@ -56,9 +56,9 @@ axis_uart_v1_0_inst
 	s_axis_tready,
 	/* AXI-Stream Interface (Master) */
 	m_axis_tdata,
-	m_axis_tuser,				/* Parity Error */
 	m_axis_tvalid,
 	m_axis_tready,
+	uart1_error,
 	//
 	tx_data_count,
 	rx_data_count,
@@ -69,8 +69,8 @@ axis_uart_v1_0_inst
 	cts							/* Active when FLOW_CONTROL == 1 */
 );
 
-    wire [15:0]m2_axis_tdata;
-	wire m2_axis_tuser;				/* Parity Error */
+    wire [8:0]m2_axis_tdata;
+	wire [4:0] uart2_error;				/* Parity Error */
 	wire m2_axis_tvalid;
 	reg m2_axis_tready = 1;
 	wire [31:0] rx2_data_count;
@@ -78,7 +78,7 @@ axis_uart_v1_0_inst
 	
 axis_uart_v1_0 #(
 	72000000,
-	5000000,
+	1840000,
 	1, 			/* 0(none), 1(even), 2(odd), 3(mark), 4(space) */
 	8, 		/* Byte Size (16 max) */
 	0, 		/* 0(one stop), 1(two stops) */
@@ -101,7 +101,7 @@ axis_uart_v1_0_inst_2
 //	s_axis_tready,
 	/* AXI-Stream Interface (Master) */
 	.m_axis_tdata(m2_axis_tdata),
-	.m_axis_tuser(m2_axis_tuser),				/* Parity Error */
+	.error(uart2_error),				/* Parity Error */
 	.m_axis_tvalid(m2_axis_tvalid),
 	.m_axis_tready(m2_axis_tready),
 	//

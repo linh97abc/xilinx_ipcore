@@ -38,14 +38,14 @@ module axis_uart_v1_0 #(
 	input wire s_axis_config_tvalid,
 	output wire s_axis_config_tready,
 	/* AXI-Stream Interface (Slave) */
-	input wire [15:0]s_axis_tdata,
+	input wire [8:0]s_axis_tdata,
 	input wire s_axis_tvalid,
 	output wire s_axis_tready,
 	/* AXI-Stream Interface (Master) */
-	output wire [15:0]m_axis_tdata,
-	output wire m_axis_tuser,				/* Parity Error */
+	output wire [8:0]m_axis_tdata,
 	output wire m_axis_tvalid,
 	input wire m_axis_tready,
+	output wire [4:0] error,
 	//
 	output wire [31:0] tx_data_count,
 	output wire [31:0] rx_data_count,
@@ -99,9 +99,9 @@ uart_rx #(
 	.s_axis_config_tvalid((DYNAMIC_CONFIG) ? s_axis_config_tvalid : 1'b0),
 	.s_axis_config_tready(s_axis_config_rx_tready),
 	.m_axis_tdata(m_axis_tdata),
-	.m_axis_tuser(m_axis_tuser),
 	.m_axis_tvalid(m_axis_tvalid),
 	.m_axis_tready(m_axis_tready),
+	.error(error),
 	.rxd(rx),
 	.rtsn(rts),
 	.rx_data_count(rx_data_count)
